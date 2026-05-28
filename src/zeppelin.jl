@@ -155,6 +155,7 @@ function loadZep( hdzfilename::String)::Zeppelin
         "EDGE_ROUGHNESS" => "EDGEROUGHNESS",
         "COMP_HASH" => "COMPHASH",
         "PSEM_CLASS" => "CLASS",
+        "VERIFIED_CLASS" => "VERIFIEDCLASS",
     )
     function _extractclassnames(header)
         # Find all the class name mappings
@@ -437,6 +438,7 @@ function writeZep(zep::Zeppelin,  hdzfilename::String)
         for (i, cn) in enumerate(zep.classnames)
             headeritems["CLASS$(i-1)"]=cn
         end
+        headeritems["CLASSES"]= "$(length(zep.classnames))"
     end
     headeritems["TOTAL_PARTICLES"] = "$(size(zep.data,1))"
     # write out the header
@@ -755,4 +757,38 @@ end
 function Base.sort(zep::Zeppelin, cols=All(); nargs...)
     sd = sort(zep.data, cols; nargs...)
     return Zeppelin(zep.headerfile, copy(zep.header), sd, copy(zep.classnames))
+end
+
+"""
+   reclass!(z::Zeppelin, r::Int, new_name::String)
+   
+Assigns the particle in row `r` to a class named `new_name`.
+If the class name isn't already available, it is added to the
+list of available classes.
+"""
+function reclass!(z::Zeppelin, r::Int, new_name)
+    nn = String(new_name)
+    i = findfirst(n->n==nn, z.classnames)
+    if isnothing(i)
+        push!(z.classnames,nn)
+        i = length(z.classnames)
+    end
+    nc = NeXLParticle.ZepClass(z,i-1)
+    z.data[r,:CLASS] = nc
+    nc
+end
+
+
+"""
+   reclassall!(z1::Zeppelin, z2::Zeppelin, old_name)
+
+Re-assign the class for all rows with CLASS=old_name to
+the CLASS of the same particle in `z2`.
+"""
+function reclassall!(z1::Zeppelin, z2::Zeppelin, old_name)
+    foreach(eachparticle(z1)) do i
+        if z1[i,:CLASS]==old_name
+            reclass!(z1,i,z2[i,:CLASS])
+        end
+    end
 end
